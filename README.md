@@ -4,7 +4,7 @@ This repo contains the code for a tool I used while importing VHS tapes to mp4 f
 
 * NodeJS installed
 * ffmpeg installed
-* Probably a Mac. I didn't test this anywhere else. ffmpeg is definitely using a macOS specific flag for encoding.
+* A Mac gets the hardware encoder (`h264_videotoolbox`). Anywhere else `encode.js` falls back to the software encoder `libx264` (about 1.7x realtime on a 4 core PC at the default `medium` preset). Set `ENCODER=<ffmpeg encoder>` to pick another one, or `X264_PRESET=veryfast` (etc.) to trade quality for speed. `encode-m1.js` is Mac only.
 
 For the importing process I used Elgato's Game Capture HD software (version 2.11.11) on macOS and paired it with an Elgato HD60 USB capture device. I used an onn. Composite HD to HDMI Converter from Walmart (https://www.walmart.com/ip/onn-Composite-AV-to-HDMI-Converter/575028877) to convert the VCR output to HDMI for the capture card. The converter does not support HDCP which worked perfectly.
 

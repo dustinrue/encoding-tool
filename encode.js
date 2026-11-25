@@ -4,6 +4,10 @@ const path = require('path');
 const args = process.argv.slice(2);
 const { spawn } = require('child_process');
 
+// h264_videotoolbox only exists in macOS builds of ffmpeg; elsewhere use the software encoder (override with ENCODER=...)
+const encoder = process.env.ENCODER || (process.platform === 'darwin' ? 'h264_videotoolbox' : 'libx264');
+const encoderArgs = encoder === 'libx264' ? ['-preset', process.env.X264_PRESET || 'medium', '-profile:v', 'high', '-pix_fmt', 'yuv420p'] : [];
+
 if (args.length == 0) {
   console.log("Give me the path");
   process.exit();
@@ -61,14 +65,15 @@ function encodeFile(metadata, volume) {
       '-aspect', '720:540',
       '-ss', `${Math.floor(metadata.offsetTime)}`,
       '-t', `${Math.floor(metadata.endTime)}`,
-      '-c:v', 'h264_videotoolbox', 
+      '-c:v', encoder,
+      ...encoderArgs,
       '-filter:a', `volume=${volume}dB, highpass=f=100`,
       '-b:v', '1650k',
       `${metadata.itemId}.mp4`
     ]);
 
     ffmpeg.stdout.on('data', (data) => {
-      process.stdout.write(bufer.toString(data));
+      process.stdout.write(data.toString('utf-8'));
     });
   
     ffmpeg.stderr.on('data', (data) => {
@@ -80,8 +85,7 @@ function encodeFile(metadata, volume) {
     });
   
     ffmpeg.on('close', (code) => {
-      resolve();
-      
+      resolve(code);
     })
   });
  
@@ -105,7 +109,7 @@ function combineFiles(metadata) {
     ]);
 
     ffmpeg.stdout.on('data', (data) => {
-      process.stdout.write(bufer.toString(data));
+      process.stdout.write(data.toString('utf-8'));
     });
   
     ffmpeg.stderr.on('data', (data) => {
@@ -117,21 +121,26 @@ function combineFiles(metadata) {
     });
   
     ffmpeg.on('close', (code) => {
-      resolve();
-      
+      resolve(code);
     })
   });
 }
 
 
 function cleanup(metadata) {
-  fs.unlinkSync(`${metadata.itemId}.mp4`);
+  if (fs.existsSync(`${metadata.itemId}.mp4`)) fs.unlinkSync(`${metadata.itemId}.mp4`);
 }
 
 async function run() {
   const metadata = await readFile(args[0]);
-  await encodeFile(metadata, args[1]);
-  await combineFiles(metadata);
+  if (await encodeFile(metadata, args[1]) !== 0) {
+    console.error(`\nEncoding with ${encoder} failed; nothing was combined.`);
+    process.exit(1);
+  }
+  if (await combineFiles(metadata) !== 0) {
+    console.error(`\nCombining with the intro failed; ${metadata.itemId}.mp4 was kept.`);
+    process.exit(1);
+  }
   await cleanup(metadata);
 }
 
